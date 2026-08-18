@@ -4,6 +4,5 @@
     "noEmit": false,
     "types": ["vitest/globals", "node"]
   },
-  "files": ["tests/test-setup.ts"],
   "include": ["tests/**/*.ts"]
 }
