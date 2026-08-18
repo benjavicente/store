@@ -10,8 +10,7 @@ import {
   untracked,
 } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
-import { By } from '@angular/platform-browser'
-import { render } from '@testing-library/angular'
+import { fireEvent, render, waitFor } from '@testing-library/angular'
 import { Store, createAtom, createStore } from '@tanstack/store'
 import {
   _injectStore,
@@ -27,7 +26,15 @@ function createStableSignal<T>(fn: () => T): () => T {
 }
 
 describe('atom hooks', () => {
-  test('injectSelector reads mutable atom state and rerenders when updated', () => {
+  test('injectAtom returns an Angular signal', () => {
+    const atom = createAtom(0)
+
+    const count = TestBed.runInInjectionContext(() => injectAtom(atom))
+
+    expect(isSignal(count)).toBe(true)
+  })
+
+  test('injectSelector reads mutable atom state and rerenders when updated', async () => {
     const atom = createAtom(0)
 
     @Component({
@@ -47,20 +54,16 @@ describe('atom hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 0')
+    expect(getByText('Value: 0')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#update'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Update' }))
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 1')
+    await waitFor(() => expect(getByText('Value: 1')).toBeInTheDocument())
   })
 
-  test('injectAtom returns a callable signal with a set method', () => {
+  test('injectAtom returns a callable signal with a set method', async () => {
     const atom = createAtom(0)
 
     @Component({
@@ -80,20 +83,16 @@ describe('atom hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 0')
+    expect(getByText('Value: 0')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#add'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Add 5' }))
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 5')
+    await waitFor(() => expect(getByText('Value: 5')).toBeInTheDocument())
   })
 
-  test('injectAtom set accepts a direct value', () => {
+  test('injectAtom set accepts a direct value', async () => {
     const atom = createAtom(0)
 
     @Component({
@@ -117,17 +116,13 @@ describe('atom hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 42')
+    expect(getByText('Value: 42')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#reset'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Reset' }))
 
-    expect(fixture.nativeElement.textContent).toContain('Value: 0')
+    await waitFor(() => expect(getByText('Value: 0')).toBeInTheDocument())
   })
 
   test('injectAtom supports atoms created from input signals', async () => {
@@ -160,32 +155,33 @@ describe('atom hooks', () => {
 })
 
 describe('selector hooks', () => {
+  test('injectSelector returns an Angular signal', () => {
+    const store = createStore(0)
+
+    const value = TestBed.runInInjectionContext(() => injectSelector(store))
+
+    expect(isSignal(value)).toBe(true)
+  })
+
   test('allows us to select state using a selector', () => {
     const store = createStore({ select: 0, ignored: 1 })
 
-    @Component({
-      template: `<p>Store: {{ storeVal() }}</p>`,
-      standalone: true,
-    })
-    class MyCmp {
-      storeVal = injectSelector(store, (state) => state.select)
-    }
+    const storeVal = TestBed.runInInjectionContext(() =>
+      injectSelector(store, (state) => state.select),
+    )
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
-
-    expect(fixture.nativeElement.textContent).toContain('Store: 0')
+    expect(storeVal()).toBe(0)
   })
 
-  test('injectSelector reads writable and readonly store state', () => {
+  test('injectSelector reads writable and readonly store state', async () => {
     const baseStore = createStore(1)
     const readonlyStore = createStore(() => ({ value: baseStore.state * 2 }))
 
     @Component({
       template: `
         <div>
-          <p id="value">{{ value() }}</p>
-          <p id="readonly">{{ readonlyValue().value }}</p>
+          <p>Value: {{ value() }}</p>
+          <p>Readonly: {{ readonlyValue().value }}</p>
           <button id="update" (click)="update()">Update</button>
         </div>
       `,
@@ -200,32 +196,20 @@ describe('selector hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(
-      fixture.debugElement.query(By.css('p#value')).nativeElement.textContent,
-    ).toContain('1')
-    expect(
-      fixture.debugElement.query(By.css('p#readonly')).nativeElement
-        .textContent,
-    ).toContain('2')
+    expect(getByText('Value: 1')).toBeInTheDocument()
+    expect(getByText('Readonly: 2')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#update'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Update' }))
 
-    expect(
-      fixture.debugElement.query(By.css('p#value')).nativeElement.textContent,
-    ).toContain('2')
-    expect(
-      fixture.debugElement.query(By.css('p#readonly')).nativeElement
-        .textContent,
-    ).toContain('4')
+    await waitFor(() => {
+      expect(getByText('Value: 2')).toBeInTheDocument()
+      expect(getByText('Readonly: 4')).toBeInTheDocument()
+    })
   })
 
-  test('only triggers a re-render when selector state is updated', () => {
+  test('only triggers a re-render when selector state is updated', async () => {
     const store = createStore({ select: 0, ignored: 1 })
     let count = 0
 
@@ -268,28 +252,23 @@ describe('selector hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(fixture.nativeElement.textContent).toContain('Store: 0')
+    expect(getByText('Store: 0')).toBeInTheDocument()
     expect(count).toEqual(1)
 
-    fixture.debugElement
-      .query(By.css('button#updateSelect'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(fixture.nativeElement.textContent).toContain('Store: 10')
-    expect(count).toEqual(2)
+    fireEvent.click(getByRole('button', { name: 'Update select' }))
+    await waitFor(() => {
+      expect(getByText('Store: 10')).toBeInTheDocument()
+      expect(count).toEqual(2)
+    })
 
-    fixture.debugElement
-      .query(By.css('button#updateIgnored'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(fixture.nativeElement.textContent).toContain('Store: 10')
+    fireEvent.click(getByRole('button', { name: 'Update ignored' }))
+    expect(getByText('Store: 10')).toBeInTheDocument()
     expect(count).toEqual(2)
   })
 
-  test('injectSelector allows specifying a custom equality function', () => {
+  test('injectSelector allows specifying a custom equality function', async () => {
     const store = createStore({
       array: [
         { select: 0, ignore: 1 },
@@ -301,7 +280,7 @@ describe('selector hooks', () => {
     @Component({
       template: `
         <div>
-          <p id="sum">{{ sum() }}</p>
+          <p>Sum: {{ sum() }}</p>
           <button id="updateSelect" (click)="updateSelect()">
             Update select
           </button>
@@ -350,34 +329,29 @@ describe('selector hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(fixture.nativeElement.textContent).toContain('0')
+    expect(getByText('Sum: 0')).toBeInTheDocument()
     expect(count).toBe(1)
 
-    fixture.debugElement
-      .query(By.css('button#updateIgnored'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Update ignored' }))
     expect(count).toBe(1)
 
-    fixture.debugElement
-      .query(By.css('button#updateSelect'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(fixture.nativeElement.textContent).toContain('10')
-    expect(count).toBe(2)
+    fireEvent.click(getByRole('button', { name: 'Update select' }))
+    await waitFor(() => {
+      expect(getByText('Sum: 10')).toBeInTheDocument()
+      expect(count).toBe(2)
+    })
   })
 
-  test('injectSelector works with mounted derived stores', () => {
+  test('injectSelector works with mounted derived stores', async () => {
     const store = createStore(0)
     const derived = createStore(() => ({ val: store.state * 2 }))
 
     @Component({
       template: `
         <div>
-          <p id="derived">{{ derivedVal() }}</p>
+          <p>Derived: {{ derivedVal() }}</p>
           <button id="update" (click)="update()">Update</button>
         </div>
       `,
@@ -391,20 +365,12 @@ describe('selector hooks', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
-    expect(
-      fixture.debugElement.query(By.css('p#derived')).nativeElement.textContent,
-    ).toContain('0')
+    const { getByRole, getByText } = await render(MyCmp)
+    expect(getByText('Derived: 0')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#update'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Update' }))
 
-    expect(
-      fixture.debugElement.query(By.css('p#derived')).nativeElement.textContent,
-    ).toContain('2')
+    await waitFor(() => expect(getByText('Derived: 2')).toBeInTheDocument())
   })
 
   test('injectSelector supports selectors that read input signals', async () => {
@@ -438,29 +404,22 @@ describe('injectStore', () => {
   test('is a compatibility alias for injectSelector', () => {
     const store = createStore({ select: 0 })
 
-    @Component({
-      template: `<p>Store: {{ storeVal() }}</p>`,
-      standalone: true,
-    })
-    class MyCmp {
-      storeVal = injectStore(store, (state) => state.select)
-    }
+    const storeVal = TestBed.runInInjectionContext(() =>
+      injectStore(store, (state) => state.select),
+    )
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
-
-    expect(fixture.nativeElement.textContent).toContain('Store: 0')
+    expect(storeVal()).toBe(0)
   })
 })
 
 describe('dataType', () => {
-  test('date change trigger re-render', () => {
+  test('date change trigger re-render', async () => {
     const store = createStore({ date: new Date('2025-03-29T21:06:30.401Z') })
 
     @Component({
       template: `
         <div>
-          <p id="displayStoreVal">{{ storeVal() }}</p>
+          <p>Date: {{ storeVal().toISOString() }}</p>
           <button id="updateDate" (click)="updateDate()">Update date</button>
         </div>
       `,
@@ -477,22 +436,14 @@ describe('dataType', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(
-      fixture.debugElement.query(By.css('p#displayStoreVal')).nativeElement
-        .textContent,
-    ).toContain(new Date('2025-03-29T21:06:30.401Z'))
+    expect(getByText('Date: 2025-03-29T21:06:30.401Z')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#updateDate'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(
-      fixture.debugElement.query(By.css('p#displayStoreVal')).nativeElement
-        .textContent,
-    ).toContain(new Date('2025-03-29T21:06:40.401Z'))
+    fireEvent.click(getByRole('button', { name: 'Update date' }))
+    await waitFor(() =>
+      expect(getByText('Date: 2025-03-29T21:06:40.401Z')).toBeInTheDocument(),
+    )
   })
 })
 
@@ -505,7 +456,7 @@ describe('_injectStore', () => {
     })
   })
 
-  test('returns selected state and actions for stores with actions', () => {
+  test('returns selected state and actions for stores with actions', async () => {
     const store = createStore({ count: 0 }, ({ setState }) => ({
       inc: () => setState((prev) => ({ count: prev.count + 1 })),
     }))
@@ -513,7 +464,7 @@ describe('_injectStore', () => {
     @Component({
       template: `
         <div>
-          <p id="count">{{ count() }}</p>
+          <p>Count: {{ count() }}</p>
           <button id="inc" (click)="inc()">Inc</button>
         </div>
       `,
@@ -527,30 +478,22 @@ describe('_injectStore', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(
-      fixture.debugElement.query(By.css('p#count')).nativeElement.textContent,
-    ).toContain('0')
+    expect(getByText('Count: 0')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#inc'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Inc' }))
 
-    expect(
-      fixture.debugElement.query(By.css('p#count')).nativeElement.textContent,
-    ).toContain('1')
+    await waitFor(() => expect(getByText('Count: 1')).toBeInTheDocument())
   })
 
-  test('returns selected state and setState for plain stores', () => {
+  test('returns selected state and setState for plain stores', async () => {
     const store = createStore(0)
 
     @Component({
       template: `
         <div>
-          <p id="value">{{ value() }}</p>
+          <p>Value: {{ value() }}</p>
           <button id="inc" (click)="inc()">Inc</button>
         </div>
       `,
@@ -564,26 +507,18 @@ describe('_injectStore', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(
-      fixture.debugElement.query(By.css('p#value')).nativeElement.textContent,
-    ).toContain('0')
+    expect(getByText('Value: 0')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#inc'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
+    fireEvent.click(getByRole('button', { name: 'Inc' }))
 
-    expect(
-      fixture.debugElement.query(By.css('p#value')).nativeElement.textContent,
-    ).toContain('1')
+    await waitFor(() => expect(getByText('Value: 1')).toBeInTheDocument())
   })
 })
 
 describe('createStoreContext', () => {
-  test('provides and injects a typed store context', () => {
+  test('provides and injects a typed store context', async () => {
     const { provideStoreContext, injectStoreContext } = createStoreContext<{
       countAtom: Atom<number>
       petStore: Store<{ cats: number; dogs: number }>
@@ -592,8 +527,8 @@ describe('createStoreContext', () => {
     @Component({
       template: `
         <div>
-          <p id="count">{{ count() }}</p>
-          <p id="cats">{{ cats() }}</p>
+          <p>Count: {{ count() }}</p>
+          <p>Cats: {{ cats() }}</p>
           <button id="inc" (click)="inc()">Inc</button>
           <button id="addCat" (click)="addCat()">Add cat</button>
         </div>
@@ -623,31 +558,16 @@ describe('createStoreContext', () => {
       }
     }
 
-    const fixture = TestBed.createComponent(MyCmp)
-    fixture.detectChanges()
+    const { getByRole, getByText } = await render(MyCmp)
 
-    expect(
-      fixture.debugElement.query(By.css('p#count')).nativeElement.textContent,
-    ).toContain('10')
-    expect(
-      fixture.debugElement.query(By.css('p#cats')).nativeElement.textContent,
-    ).toContain('2')
+    expect(getByText('Count: 10')).toBeInTheDocument()
+    expect(getByText('Cats: 2')).toBeInTheDocument()
 
-    fixture.debugElement
-      .query(By.css('button#inc'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(
-      fixture.debugElement.query(By.css('p#count')).nativeElement.textContent,
-    ).toContain('11')
+    fireEvent.click(getByRole('button', { name: 'Inc' }))
+    await waitFor(() => expect(getByText('Count: 11')).toBeInTheDocument())
 
-    fixture.debugElement
-      .query(By.css('button#addCat'))
-      .triggerEventHandler('click', null)
-    fixture.detectChanges()
-    expect(
-      fixture.debugElement.query(By.css('p#cats')).nativeElement.textContent,
-    ).toContain('3')
+    fireEvent.click(getByRole('button', { name: 'Add cat' }))
+    await waitFor(() => expect(getByText('Cats: 3')).toBeInTheDocument())
   })
 
   test('throws when injectStoreContext is called without a provider', () => {
@@ -655,17 +575,8 @@ describe('createStoreContext', () => {
       countAtom: Atom<number>
     }>()
 
-    @Component({
-      template: `<p>{{ count() }}</p>`,
-      standalone: true,
-    })
-    class MyCmp {
-      private ctx = injectStoreContext()
-      count = injectSelector(this.ctx.countAtom)
-    }
-
-    expect(() => TestBed.createComponent(MyCmp)).toThrow(
-      /Missing StoreContext provider/,
-    )
+    expect(() =>
+      TestBed.runInInjectionContext(() => injectStoreContext()),
+    ).toThrow(/Missing StoreContext provider/)
   })
 })
