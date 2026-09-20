@@ -3,7 +3,7 @@ id: InjectSelectorOptions
 title: InjectSelectorOptions
 ---
 
-Defined in: [packages/angular-store/src/injectSelector.ts:11](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L11)
+Defined in: [packages/angular-store/src/injectSelector.ts:12](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L12)
 
 ## Extends
 
@@ -23,7 +23,7 @@ Defined in: [packages/angular-store/src/injectSelector.ts:11](https://github.com
 optional compare: (a, b) => boolean;
 ```
 
-Defined in: [packages/angular-store/src/injectSelector.ts:15](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L15)
+Defined in: [packages/angular-store/src/injectSelector.ts:16](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L16)
 
 #### Parameters
 
@@ -65,4 +65,4 @@ Omit.debugName
 optional injector: Injector;
 ```
 
-Defined in: [packages/angular-store/src/injectSelector.ts:16](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L16)
+Defined in: [packages/angular-store/src/injectSelector.ts:17](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L17)

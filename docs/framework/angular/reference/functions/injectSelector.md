@@ -10,7 +10,7 @@ function injectSelector<TState, TSelected>(
 options?): Signal<TSelected>;
 ```
 
-Defined in: [packages/angular-store/src/injectSelector.ts:55](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L55)
+Defined in: [packages/angular-store/src/injectSelector.ts:58](https://github.com/TanStack/store/blob/main/packages/angular-store/src/injectSelector.ts#L58)
 
 Selects a slice of state from an atom or store and returns it as an Angular
 signal.
