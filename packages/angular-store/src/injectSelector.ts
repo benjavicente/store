@@ -1,10 +1,11 @@
 import {
   Injector,
   assertInInjectionContext,
+  computed,
   effect,
   inject,
-  linkedSignal,
   runInInjectionContext,
+  signal,
 } from '@angular/core'
 import type { CreateSignalOptions, Signal } from '@angular/core'
 
@@ -28,13 +29,15 @@ function resolveInjector(
   injector?: Injector,
 ) {
   if (!injector) {
-    assertInInjectionContext(fn)
+    // Assertion removed in production builds
+    if (typeof ngDevMode === 'undefined' || ngDevMode) {
+      assertInInjectionContext(fn)
+    }
     return inject(Injector)
   }
 
   return injector
 }
-
 
 /**
  * Selects a slice of state from an atom or store and returns it as an Angular
@@ -58,25 +61,25 @@ export function injectSelector<TState, TSelected = NoInfer<TState>>(
     d as unknown as TSelected,
   options?: InjectSelectorOptions<TSelected>,
 ): Signal<TSelected> {
-  const injector = resolveInjector(
-    injectSelector,
-    options?.injector,
-  )
+  const injector = resolveInjector(injectSelector, options?.injector)
 
   return runInInjectionContext(injector, () => {
-    const _source = typeof source === "function" ? source : (() => source)
+    const _source = typeof source === 'function' ? source : () => source
 
-    const slice = linkedSignal(() => selector(_source().get()), {
-      equal: options?.compare,
-    })
+    const revision = signal(0)
+    const invalidate = () => revision.update((n) => n + 1)
 
     effect((onCleanup) => {
-      const { unsubscribe } = _source().subscribe((state) => {
-        slice.set(selector(state))
-      })
+      const { unsubscribe } = _source().subscribe(invalidate)
       onCleanup(unsubscribe)
+      // Must be invalidated on susbcription since the state might change
+      // betwen the first read and when the effect finally runs
+      invalidate()
     })
 
-    return slice.asReadonly()
+    return computed(() => {
+      revision()
+      return selector(_source().get())
+    })
   })
 }
